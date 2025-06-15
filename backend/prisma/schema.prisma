@@ -1,0 +1,49 @@
+// backend/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UserUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
+}
+
+model User {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  isPro      Boolean  @default(false)
+  plan       String   @default("basic") // "basic" or "pro"
+  createdAt  DateTime @default(now())
+}
+
+model UsageLog {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  userId         String
+  conversationId String
+  role           String   // "user" or "assistant"
+  content        String
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([conversationId])
+}
+
+
