@@ -7,6 +7,7 @@ import { useAuth } from "@clerk/nextjs";
 
 export function useUserPlan() {
   const [plan, setPlan] = useState("basic");
+  const [isPro, setIsPro] = useState(false);
   const { getToken } = useAuth();
 
   const fetchPlan = async () => {
@@ -17,9 +18,11 @@ export function useUserPlan() {
       });
       const data = await res.json();
       setPlan(data.plan || "basic");
+      setIsPro(!!data.isPro);
     } catch (error) {
       console.error("Error fetching plan:", error);
       setPlan("basic");
+      setIsPro(false);
     }
   };
 
@@ -27,5 +30,5 @@ export function useUserPlan() {
     fetchPlan();
   }, [getToken]);
 
-  return { plan, refetchPlan: fetchPlan };
+  return { plan, isPro, refetchPlan: fetchPlan };
 }
