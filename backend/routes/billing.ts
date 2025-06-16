@@ -5,6 +5,7 @@ import { stripe } from '../utils/stripe';
 import clerkAuth from '../middlewares/clerkAuth';
 import { PrismaClient } from "@prisma/client";
 import { ClerkExpressRequireAuth } from "@clerk/clerk-sdk-node";
+import bodyParser from "body-parser";
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -57,42 +58,6 @@ router.post('/create-checkout-session', async (req: Request, res: Response) => {
       error: err instanceof Error ? err.message : String(err),
     });
   }
-});
-
-// ⚙️ Stripe Webhook (raw body required)
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req: Request, res: Response) => {
-  const sig = req.headers['stripe-signature'] as string;
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-
-  let event;
-
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-  } catch (err: any) {
-    console.error('❌ Stripe webhook error:', err.message);
-    res.status(400).send(`Webhook Error: ${err.message}`);
-    return;
-  }
-
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as any;
-    const userId = session.metadata?.userId;
-    const priceId = session.metadata?.priceId;
-    let plan = "basic";
-    if (priceId === "price_1RXte5SBfHkO6vs5FswZoKw9") {
-      plan = "plus";
-    } else if (priceId === "price_1RXtf3SBfHkO6vs59OvTjs79") {
-      plan = "pro";
-    }
-    if (userId) {
-      await prisma.user.upsert({
-        where: { userId },
-        update: { plan, isPro: plan !== "basic" },
-        create: { userId, plan, isPro: plan !== "basic" },
-      });
-    }
-  }
-  res.status(200).json({ received: true });
 });
 
 router.post("/billing/upgrade", async (req: Request, res: Response) => {
