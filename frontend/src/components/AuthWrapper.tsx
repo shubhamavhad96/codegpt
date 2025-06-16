@@ -29,7 +29,7 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
   return (
     <main className="flex flex-col min-h-screen bg-white dark:bg-zinc-900">
       {/* Header with user info */}
-      <div className="w-full flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-zinc-700">
+      <div className="sticky top-0 z-50 w-full flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
         <span
           className="text-[2rem] font-bold text-black dark:text-white tracking-tight select-none"
           style={{ letterSpacing: "-0.02em" }}
