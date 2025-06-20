@@ -67,12 +67,24 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
           <div className="relative">
             <UserButton afterSignOutUrl="/" />
             {plan !== "basic" && (
-              <span
-                className="absolute -right-2 -bottom-2 bg-white border border-gray-200 rounded-full px-2 py-0.5 text-xs font-bold shadow"
-                style={{ whiteSpace: "nowrap" }}
-              >
-                {plan.toUpperCase()}
-              </span>
+              <>
+                {plan === "pro" && (
+                  <span
+                    className="absolute -right-2 -bottom-2 bg-white text-black border border-gray-200 rounded-full px-2 py-0.5 text-xs font-bold shadow"
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    PRO
+                  </span>
+                )}
+                {plan === "plus" && (
+                  <span
+                    className="absolute -right-2 -bottom-2 bg-white text-black border border-gray-200 rounded-full px-2 py-0.5 text-xs font-bold shadow"
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    PLUS
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -24,7 +24,9 @@ model User {
   userId     String   @unique
   isPro      Boolean  @default(false)
   plan       String   @default("basic") // "basic" or "pro"
+  promptsUsed Int     @default(0) // Track prompt usage
   createdAt  DateTime @default(now())
+  stripeCustomerId String? // <-- Added for Stripe integration
 }
 
 model UsageLog {

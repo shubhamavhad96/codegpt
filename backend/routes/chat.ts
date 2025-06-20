@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { handleConversation } from "../ai/conversationMemory";
 import { v4 as uuidv4 } from 'uuid';
+import { checkAndIncrementUsage } from "../lib/checkLimit";
 
 const router = Router();
 
@@ -21,14 +22,26 @@ router.post("/message", async (req: Request, res: Response) => {
   console.log("→ Received chat message request");
   console.log("→ Request body:", req.body);
   
-  const { message, sessionId } = req.body;
+  const { message, sessionId, userId } = req.body;
 
-  if (!message || typeof message !== "string" || !sessionId || typeof sessionId !== "string") {
-    console.log("❌ Invalid request: missing or invalid message/sessionId");
+  if (!message || typeof message !== "string" || !sessionId || typeof sessionId !== "string" || !userId || typeof userId !== "string") {
+    console.log("❌ Invalid request: missing or invalid message/sessionId/userId");
     return res.status(400).json({ 
       response: null, 
-      error: "Missing or invalid message/sessionId in request body" 
+      error: "Missing or invalid message/sessionId/userId in request body" 
     });
+  }
+
+  // ✅ Check prompt usage limit
+  try {
+    const allowed = await checkAndIncrementUsage(userId);
+    console.log(`checkAndIncrementUsage result: ${allowed}`);
+    if (!allowed) {
+      return res.status(403).json({ error: "Prompt limit reached" });
+    }
+  } catch (err) {
+    console.error("❌ Error checking prompt usage:", err);
+    return res.status(500).json({ error: "Failed to check prompt usage" });
   }
 
   try {

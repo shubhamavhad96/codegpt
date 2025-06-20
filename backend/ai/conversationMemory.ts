@@ -45,42 +45,53 @@ const userConversations = new Map<string, string>();
 const sessionHistories = new Map<string, BufferMemory>();
 
 // Enhanced follow-up detection
+export const FOLLOW_UP_PHRASES = [
+  "more",
+  "explain more",
+  "continue",
+  "elaborate",
+  "give me more",
+  "go on",
+  "add more",
+  "tell me more",
+  "and?",
+  "why?",
+  "how?",
+  "what else?",
+  // existing patterns
+  "how do I do that",
+  "what about",
+  "and also",
+  "how to use",
+  "how do i use",
+  "can you explain",
+  "in it",
+  "more info",
+  "tell me more",
+  "what's next",
+  "how does that work",
+  "can you show me",
+  "give me an example",
+  "what do you mean",
+  "how do you",
+  "what if",
+  "is there a way to",
+  "can I",
+  "should I",
+  "do I need to",
+  "why do I need",
+  "when should I",
+  "where do I",
+  "which one",
+  "what's the difference",
+  "how is it different",
+  "what are the benefits",
+  "what are the drawbacks"
+];
+
 function isFollowUp(message: string): boolean {
-  const followUpPatterns = [
-    "how do I do that",
-    "what about",
-    "and also",
-    "how to use",
-    "how do i use",
-    "can you explain",
-    "in it",
-    "more info",
-    "continue",
-    "elaborate",
-    "tell me more",
-    "what's next",
-    "how does that work",
-    "can you show me",
-    "give me an example",
-    "what do you mean",
-    "how do you",
-    "what if",
-    "is there a way to",
-    "can I",
-    "should I",
-    "do I need to",
-    "why do I need",
-    "when should I",
-    "where do I",
-    "which one",
-    "what's the difference",
-    "how is it different",
-    "what are the benefits",
-    "what are the drawbacks"
-  ];
-  
   const messageLower = message.toLowerCase();
-  return followUpPatterns.some(pattern => messageLower.includes(pattern));
+  return FOLLOW_UP_PHRASES.some(phrase => messageLower.includes(phrase));
 }
 
 // Get or create conversation ID for a user
@@ -120,6 +131,7 @@ const chainWithMemory = new RunnableWithMessageHistory({
 // Save message to database
 async function saveMessage(userId: string, conversationId: string, role: "user" | "assistant", content: string) {
   try {
+    console.log("[saveMessage] Saving message for userId:", userId);
     await prisma.message.create({
       data: {
         userId,
@@ -161,15 +173,14 @@ async function getConversationHistory(userId: string, conversationId: string): P
 // Main conversation handler
 export async function handleConversation(userId: string, userInput: string) {
   try {
+    if (!userInput.trim()) throw new Error("Empty prompt");
     const conversationId = getConversationId(userId);
-    // Save user message
     await saveMessage(userId, conversationId, "user", userInput);
-
-    // Extract last topic from history for follow-ups
     const memory = getSessionMemory(conversationId);
     const messages = await memory.chatHistory.getMessages();
     let inputForLLM = userInput;
-    if (isFollowUp(userInput) && messages.length > 0) {
+    if (isFollowUp(userInput)) {
+      if (messages.length === 0) throw new Error("No previous context for follow-up");
       // Find the last non-follow-up user message as the topic
       let lastTopic = "the previous topic";
       for (let i = messages.length - 1; i >= 0; i--) {
@@ -183,10 +194,8 @@ export async function handleConversation(userId: string, userInput: string) {
           break;
         }
       }
-      inputForLLM = `Building on our previous discussion about: ${lastTopic}\n${userInput}`;
+      inputForLLM = `This is a follow-up. Continue from your previous answer about: ${lastTopic}. User says: \"${userInput}\"`;
     }
-
-    // Get AI response with memory
     const result = await chainWithMemory.invoke(
       { input: inputForLLM } as any,
       { configurable: { sessionId: conversationId } }
@@ -194,7 +203,6 @@ export async function handleConversation(userId: string, userInput: string) {
     const responseContent = typeof result.content === 'string'
       ? result.content
       : JSON.stringify(result);
-    // Save assistant response
     await saveMessage(userId, conversationId, "assistant", responseContent);
     return {
       result: responseContent

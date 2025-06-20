@@ -5,6 +5,7 @@ import { FiArrowUp, FiPlus } from "react-icons/fi";
 import AnswerDisplay from "@/components/AnswerDisplay";
 import AuthWrapper from "@/components/AuthWrapper";
 import { useUser } from "@clerk/nextjs";
+import UpgradeModal from "@/components/UpgradeModal";
 
 type Message = { role: "user" | "ai", content: string };
 
@@ -19,6 +20,9 @@ export default function Home() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isMax, setIsMax] = useState(false);
   const sessionIdRef = useRef<string | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [remainingPrompts, setRemainingPrompts] = useState<number | null>(null);
+  const [plan, setPlan] = useState<string>("basic");
 
   // Create new sessions when the component mounts
   useEffect(() => {
@@ -66,6 +70,23 @@ export default function Home() {
     createSession();
   }, []);
 
+  const fetchPlan = async () => {
+    try {
+      const res = await fetch("/api/user/plan");
+      const data = await res.json();
+      setRemainingPrompts(data.remaining);
+      setPlan(data.plan);
+    } catch (err) {
+      console.error("Failed to fetch plan info:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchPlan();
+    }
+  }, [user]);
+
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     console.log("handleSend called");
@@ -84,9 +105,34 @@ export default function Home() {
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setLoading(true);
     try {
-      // Check if the input looks like code (contains function, class, or code-like syntax)
-      const isCode = /function|class|=>|const|let|var|import|export|return|if|for|while|try|catch/.test(userMessage);
-      if (isCode) {
+      // EXTREMELY strict code detection - only for actual user code input
+      // Must start with code patterns and be short (likely user input, not AI response)
+      const isCode = userMessage.length < 200 && /^[\s]*function\s+\w+\s*\(|^[\s]*class\s+\w+|^[\s]*const\s+\w+\s*=|^[\s]*let\s+\w+\s*=|^[\s]*var\s+\w+\s*=|^[\s]*import\s+|^[\s]*export\s+|^[\s]*return\s+|^[\s]*if\s*\(|^[\s]*for\s*\(|^[\s]*while\s*\(|^[\s]*try\s*{|^[\s]*catch\s*\(|^[\s]*console\.|^[\s]*new\s+\w+|^[\s]*async\s+function|^[\s]*await\s+|^[\s]*Promise\./.test(userMessage);
+      
+      // Reset improvement session if this is a regular question (not code)
+      if (!isCode && improveSessionId) {
+        console.log("🔄 Resetting improvement session for regular question");
+        setImproveSessionId(null);
+      }
+      
+      // Check if this is a follow-up message in a code improvement context
+      // Only check for follow-ups if we have an active improvement session AND the message is short (likely a follow-up)
+      const isFollowUp = improveSessionId && userMessage.length < 80 && /\b(explain|fix|improve|refactor|add|change|make|optimize|enhance|better|faster|cleaner|safer|more|less)\b/.test(userMessage.toLowerCase());
+      
+      // Use code improvement ONLY if it's actual code OR a follow-up in an active code improvement session
+      const shouldUseCodeImprovement = isCode || (improveSessionId && isFollowUp);
+      
+      // Debug logging
+      console.log("🔍 Routing Debug:", {
+        userMessage,
+        isCode,
+        improveSessionId,
+        isFollowUp,
+        shouldUseCodeImprovement,
+        messageLength: userMessage.length
+      });
+      
+      if (shouldUseCodeImprovement) {
         if (!improveSessionId) {
           throw new Error("No active improvement session");
         }
@@ -107,14 +153,28 @@ export default function Home() {
           { role: "ai", content: data.result }
         ]);
       } else {
+        // Regular chat - this handles both new questions and follow-ups to regular questions
+        // Reset improvement session when switching to regular chat
+        if (improveSessionId) {
+          console.log("🔄 Switching from code improvement to regular chat - resetting improvement session");
+          setImproveSessionId(null);
+        }
+        
+        console.log("→ Clerk userId from frontend:", user?.id);
         const response = await fetch("http://localhost:4000/api/chat/message", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             sessionId: sessionIdRef.current,
             message: userMessage,
+            userId: user?.id, // Always use Clerk's user.id
           }),
         });
+        if (response.status === 403) {
+          setShowUpgradeModal(true);
+          setLoading(false);
+          return;
+        }
         const data = await response.json();
         if (!response.ok || !data.response) {
           throw new Error(data.error || "Failed to get response");
@@ -133,10 +193,17 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+    await fetchPlan();
   };
 
   return (
     <AuthWrapper>
+      {showUpgradeModal && (
+        <UpgradeModal
+          open={showUpgradeModal}
+          setOpen={setShowUpgradeModal}
+        />
+      )}
       {/* Chat area (no sticky header) */}
       <div
         className="flex-1 w-full max-w-2xl mx-auto px-2 pb-48 flex flex-col gap-4 mt-8"
@@ -183,9 +250,17 @@ export default function Home() {
             <textarea
               ref={inputRef}
               className={`w-full bg-transparent outline-none text-lg placeholder-gray-400 dark:placeholder-gray-500 resize-none min-h-[44px] max-h-40 pr-2 pt-3 ${isMax && input ? 'overflow-y-auto' : 'overflow-y-hidden'}`}
-              placeholder="Ask anything"
+              placeholder={
+                plan === "basic" && remainingPrompts === 0
+                  ? "Prompt limit reached. Please upgrade."
+                  : "Ask anything"
+              }
               value={input}
               onChange={e => {
+                if (plan === "basic" && remainingPrompts === 0) {
+                  setShowUpgradeModal(true);
+                  return;
+                }
                 setInput(e.target.value);
                 if (inputRef.current) {
                   inputRef.current.style.height = 'auto';
@@ -196,7 +271,7 @@ export default function Home() {
                   setIsMax(newHeight === maxHeight);
                 }
               }}
-              disabled={loading}
+              disabled={plan === "basic" && remainingPrompts === 0}
               rows={1}
               style={{ lineHeight: '2.25', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
               onKeyDown={e => {

@@ -65,27 +65,47 @@ export async function runOllamaAgent(query: string, sessionId: string): Promise<
 }
 
 // 🔧 Code Improvement Section
-const improvePrompt = PromptTemplate.fromTemplate(`
-You are a senior software engineer helping another developer improve their code in a conversational, step-by-step manner.
+const improvePrompt = new PromptTemplate({
+  template: `You are an expert developer.
 
-Instructions:
-- Always keep your response tightly focused on the user's last code and request. Do not introduce unrelated topics or objects unless the user mentioned them.
-- Suggest improvements or explain key concepts clearly, referencing only the code and context provided so far.
-- If it's code, rewrite it with improvements applied, using best practices for the language detected in the code.
-- Respond in Markdown format:
-  - Use **triple backticks** for large multi-line code blocks
-  - Use **single backticks** for inline code (e.g., \`a\`, \`b + c\`)
-- End your response with a developer-to-developer or tutor-like prompt for next steps, such as: "Would you like to generalize this further, add more error handling, or explore another concept?"
+Task: Review and improve the following JavaScript code snippet. Fix syntax errors, improve logic, and apply best practices.
 
-Context:
+Input Code:
+\`\`\`js
 {input}
-`);
+\`\`\`
+
+Return the output in the following structured format:
+
+Corrected Code:
+\`\`\`js
+// improved code here
+\`\`\`
+
+Explanation of Improvements:
+- Clearly explain each change in 1–2 lines.
+- Use bullet points and line breaks.
+
+Summary of Changes:
+- Use one bullet per line.
+- Leave a blank line between sections for clarity.`,
+  inputVariables: ["input"]
+});
+
+function formatSummary(text: string): string {
+  return text
+    .replace(/Summary of changes:/i, '\n\nSummary of Changes:\n')
+    .replace(/(\s)?- /g, '\n- ')
+    .replace(/Explanation of Improvements:/i, '\n\nExplanation of Improvements:\n')
+    .replace(/Corrected Code:/i, '\n\nCorrected Code:\n');
+}
 
 function sanitizeMarkdown(md: string): string {
-  return md.replace(/```(\w*)\n([^\n]{1,100})\n```/g, (_, _lang, code) => {
+  const sanitized = md.replace(/```(\w*)\n([^\n]{1,100})\n```/g, (_, _lang, code) => {
     if (!code.includes("\n")) return `\`${code.trim()}\``;
     return `\`\`\`${_lang}\n${code}\n\`\`\``;
   }).replace(/\`\`\`/g, "```");
+  return formatSummary(sanitized);
 }
 
 const improvePipeline = RunnableSequence.from([improvePrompt, llm]);

@@ -54,10 +54,10 @@ export default function Sidebar() {
       <div className="p-4 border-t flex items-center gap-2">
         <span className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center font-bold text-gray-700">U</span>
         {plan === "pro" && (
-          <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded-full">PRO</span>
+          <span className="bg-white text-black text-xs px-2 py-1 rounded-full">PRO</span>
         )}
         {plan === "plus" && (
-          <span className="bg-indigo-500 text-white text-xs px-2 py-1 rounded-full">PLUS</span>
+          <span className="bg-white text-black text-xs px-2 py-1 rounded-full">PLUS</span>
         )}
         <button className="ml-auto text-gray-600">View plans</button>
       </div>

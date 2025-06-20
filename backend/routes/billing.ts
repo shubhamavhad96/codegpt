@@ -1,14 +1,17 @@
 // backend/routes/billing.ts
 
 import express, { Request, Response } from 'express';
-import { stripe } from '../utils/stripe';
 import clerkAuth from '../middlewares/clerkAuth';
 import { PrismaClient } from "@prisma/client";
 import { ClerkExpressRequireAuth } from "@clerk/clerk-sdk-node";
 import bodyParser from "body-parser";
+import Stripe from 'stripe';
+
+console.log("✅ Mounted billing routes");
 
 const router = express.Router();
 const prisma = new PrismaClient();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 declare global {
   namespace Express {
@@ -77,6 +80,65 @@ router.post("/billing/upgrade", async (req: Request, res: Response) => {
     console.error("Upgrade error:", err);
     res.status(500).json({ error: "Failed to upgrade user" });
   }
+});
+
+router.post('/cancel', ClerkExpressRequireAuth(), async (req, res) => {
+  // Log the Authorization header for debugging
+  console.log("🔑 Authorization header:", req.headers.authorization);
+  const userId = (req.auth as any).userId;
+  console.log("🔍 User ID from auth:", userId);
+
+  if (!userId) return res.status(401).json({ error: 'Unauthenticated' });
+
+  const user = await prisma.user.findUnique({ where: { userId } });
+  console.log("🔍 User from database:", user);
+
+  if (!user?.stripeCustomerId) {
+    console.log("❌ No stripeCustomerId found for user:", userId);
+    
+    // Fallback: If user has Pro/Plus plan but no stripeCustomerId, just update their plan to basic
+    if (user && (user.plan === 'pro' || user.plan === 'plus')) {
+      console.log("🔄 Fallback: Updating user plan to basic since no stripeCustomerId found");
+      await prisma.user.update({
+        where: { userId },
+        data: { plan: 'basic', isPro: false },
+      });
+      console.log("✅ User plan updated to basic");
+      return res.json({ message: 'Subscription canceled (plan updated to basic)' });
+    }
+    
+    return res.status(404).json({ error: 'User or Stripe customer not found' });
+  }
+
+  console.log("🔍 Stripe customer ID:", user.stripeCustomerId);
+
+  const subscriptions = await stripe.subscriptions.list({
+    customer: user.stripeCustomerId,
+    status: 'active',
+  });
+
+  console.log("🔍 Found subscriptions:", subscriptions.data.length);
+
+  const subscription = subscriptions.data[0];
+
+  if (!subscription) {
+    console.log("❌ No active subscription found");
+    return res.status(400).json({ error: 'No active subscription found' });
+  }
+
+  console.log("🔍 Canceling subscription:", subscription.id);
+
+  await stripe.subscriptions.update(subscription.id, {
+    cancel_at_period_end: true,
+  });
+
+  await prisma.user.update({
+    where: { userId },
+    data: { plan: 'basic', isPro: false },
+  });
+
+  console.log("✅ Subscription canceled successfully");
+  res.json({ message: 'Subscription canceled' });
 });
 
 export default router;

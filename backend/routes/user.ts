@@ -32,7 +32,12 @@ router.get(
         });
       }
 
-      res.status(200).json({ plan: user.plan || "basic" });
+      res.status(200).json({
+        plan: user.plan || "basic",
+        isPro: user.plan === "pro",
+        isPlus: user.plan === "plus",
+        remaining: user.plan === "basic" ? Math.max(0, 10 - (user.promptsUsed ?? 0)) : Infinity
+      });
     } catch (err) {
       console.error("Error fetching plan:", err);
       res.status(500).json({ plan: "basic" });

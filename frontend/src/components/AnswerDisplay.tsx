@@ -22,7 +22,7 @@ export default function AnswerDisplay({ answer }: { answer: string }) {
           if (!inline) {
             return (
               <SyntaxHighlighter
-                language={match ? match[1] : "typescript"}
+                language={match ? match[1] : "javascript"}
                 PreTag="div"
                 customStyle={{
                   borderRadius: "0.75rem",
@@ -56,13 +56,13 @@ export default function AnswerDisplay({ answer }: { answer: string }) {
           const checked = props.checked;
           if (typeof checked === "boolean") {
             return (
-              <li className="ml-6 list-none flex items-center">
+              <li className="ml-6 list-none flex items-center mb-4">
                 <span className="mr-2">{checked ? "✅" : "⬜"}</span>
                 <span>{children}</span>
               </li>
             );
           }
-          return <li className="ml-6 list-disc">{children}</li>;
+          return <li className="ml-6 list-disc mb-4">{children}</li>;
         },
         strong: ({ children }) => (
           <strong className="font-semibold">{children}</strong>

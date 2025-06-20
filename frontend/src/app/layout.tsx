@@ -12,6 +12,10 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
+        <head>
+          <title>CodeGPT</title>
+          <link rel="icon" href="/favicon.ico" />
+        </head>
         <body className={inter.className}>{children}</body>
       </html>
     </ClerkProvider>

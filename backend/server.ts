@@ -54,6 +54,7 @@ app.post("/api/billing/webhook", rawBodyMiddleware, async (req, res) => {
 
       const userId = session.metadata?.userId;
       const email = session.customer_email;
+      const stripeCustomerId = session.customer;
 
       if (!userId) {
         console.error("❌ No user ID in Stripe session metadata");
@@ -66,12 +67,13 @@ app.post("/api/billing/webhook", rawBodyMiddleware, async (req, res) => {
       } else if (session.metadata?.priceId === "price_1RXtf3SBfHkO6vs59OvTjs79") {
         plan = "pro";
       }
+      console.log(`✅ Upgrading user ${userId} to plan: ${plan}, stripeCustomerId: ${stripeCustomerId}`);
 
       try {
         const user = await prisma.user.upsert({
           where: { userId },
-          update: { plan, isPro: plan !== "basic" },
-          create: { userId, plan, isPro: plan !== "basic" },
+          update: { plan, isPro: plan !== "basic", stripeCustomerId },
+          create: { userId, plan, isPro: plan !== "basic", stripeCustomerId },
         });
         console.log(`✅ User ${userId} upgraded to ${plan}`);
       } catch (err) {
@@ -99,7 +101,7 @@ app.use("/api", agentRoutes);
 app.use("/api", improveRoutes);
 app.use("/api/protected", ClerkExpressWithAuth() as unknown as express.RequestHandler);
 app.use("/api/user", ClerkExpressWithAuth() as unknown as express.RequestHandler);
-app.use("/api/billing", billingRoutes);
+app.use("/api/billing", ClerkExpressWithAuth(), billingRoutes);
 app.use("/api", userRoutes);
 app.use("/api/conversation", conversationRoutes);
 // app.use("/api/chat", chatRouter);
